@@ -37,3 +37,6 @@ func main() {
 	fmt.Printf("pid:%v offset:%v\n", pid, offset)
 	fmt.Println("发送成功！")
 }
+
+
+
