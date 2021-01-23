@@ -1,5 +1,5 @@
 # logagent 一个日志收集项目
-### 一、项目思路:
+### 一、项目思路
    1. 通过 put 操作 将topic以及日志文件put到etcd中,
    2. 另一个进程从 etcd 中 get到topic和日志文件
    3. 利用taillog 库，从日志文件中取出日志，然后通过kafka生产者将日志文件放到 kafka中
@@ -9,6 +9,7 @@
    1. 配置jdk
    2. 安装zookeeper
    3. 安装kafka
+   4. 安装etcd
 
 ### 三、启动
 

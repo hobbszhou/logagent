@@ -14,6 +14,7 @@ var cacheInstance *AppConf
 type AppConf struct {
 	KafkaConf   `ini:"kafka"`
 	TaillogConf `ini:"taillog"`
+	EtcdConf    `ini:"etcd"`
 }
 type KafkaConf struct {
 	Address  string `ini:"address"`
@@ -22,8 +23,9 @@ type KafkaConf struct {
 }
 
 type EtcdConf struct {
-	Address string `ini:"address"`
-	Timeout int    `ini:"timeout"`
+	Address    string `ini:"address"`
+	Timeout    int    `ini:"timeout"`
+	CollectKey string `ini:"collect_key"`
 }
 
 type TaillogConf struct {
