@@ -3,8 +3,6 @@ package main
 import (
 	"code.oldboyedu.com/logagent/conf"
 	"code.oldboyedu.com/logagent/etcd"
-	"github.com/Shopify/sarama"
-	"strings"
 	"time"
 
 	"code.oldboyedu.com/logagent/kafka"
@@ -19,29 +17,8 @@ var (
 )
 
 func run() (err error) {
-	// 1. 读取日志
-	fmt.Println("------------ run ------------")
-	fmt.Println("filenmae=", cfg.TaillogConf.FileName, cfg.KafkaConf.Topic)
-	for {
-		line, ok := <-taillog.TailObj.Lines
-		if !ok {
-			fmt.Println("tail file close reopen ,filename is=", taillog.TailObj.Filename)
-			time.Sleep(time.Second)
-			continue
-		}
-		if len(strings.Trim(line.Text, "\r")) == 0 {
-			fmt.Println("出现换行直接跳过..")
-			continue
-		}
-
-		fmt.Println("line=", line.Text)
-		// 改为异步，利用通道
-		msg := &sarama.ProducerMessage{}
-		msg.Topic = cfg.KafkaConf.Topic
-		msg.Value = sarama.StringEncoder(line.Text)
-		kafka.ToMsgChan(msg)
-
-	}
+	/// 制造一个死循环
+	select {}
 }
 
 func main() {
@@ -72,6 +49,9 @@ func main() {
 		return
 	}
 	fmt.Printf("get conf from etcd success, %v\n", logEntryConf)
+	// 2. 根据etcd获取的配置进行初始化
+	err = taillog.Init(logEntryConf)
+
 	for index, value := range logEntryConf {
 		fmt.Printf("index:%v value:%v\n", index, value)
 	}
@@ -83,6 +63,6 @@ func main() {
 	//}
 	//fmt.Println("init taillog success.")
 	////3. 具体的业务
-	//run()
+	run()
 
 }

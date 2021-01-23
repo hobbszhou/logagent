@@ -28,7 +28,7 @@ func Init(addr string, timeout time.Duration) (err error) {
 }
 
 // 从ETCD中根据key获取配置项
-func GetConf(key string) (logEntryConf []*common.LogEntry, err error) {
+func GetConf(key string) (logEntryConf []common.LogEntry, err error) {
 
 	fmt.Println("key==========", key)
 	// get
@@ -54,14 +54,14 @@ func GetConf(key string) (logEntryConf []*common.LogEntry, err error) {
 		return
 	}
 
-	//for _, ev := range resp.Kvs {
-	//	//fmt.Printf("%s:%s\n", ev.Key, ev.Value)
-	//	err = json.Unmarshal(ev.Value, &logEntryConf)
-	//	if err != nil {
-	//		fmt.Printf("unmarshal etcd value failed,err:%v\n", err)
-	//		return
-	//	}
-	//}
+	for _, ev := range resp.Kvs {
+		//fmt.Printf("%s:%s\n", ev.Key, ev.Value)
+		err = json.Unmarshal(ev.Value, &logEntryConf)
+		if err != nil {
+			fmt.Printf("unmarshal etcd value failed,err:%v\n", err)
+			return
+		}
+	}
 	return
 }
 
