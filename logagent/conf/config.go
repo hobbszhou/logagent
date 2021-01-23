@@ -21,6 +21,11 @@ type KafkaConf struct {
 	ChanSize int64  `ini:"chanSize"`
 }
 
+type EtcdConf struct {
+	Address string `ini:"address"`
+	Timeout int    `ini:"timeout"`
+}
+
 type TaillogConf struct {
 	FileName string `ini:"fileName"`
 }

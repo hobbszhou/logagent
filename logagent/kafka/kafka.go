@@ -10,7 +10,7 @@ import (
 
 var (
 	client  sarama.SyncProducer // 声明一个全局的连接kafka的生产者client
-	MsgChan chan *sarama.ProducerMessage
+	msgChan chan *sarama.ProducerMessage
 )
 
 // Init 初始化client
@@ -28,7 +28,7 @@ func Init(addrs []string) (err error) {
 		fmt.Println("producer closed, err:", err)
 		return
 	}
-	MsgChan = make(chan *sarama.ProducerMessage, cfg.KafkaConf.ChanSize)
+	msgChan = make(chan *sarama.ProducerMessage, cfg.KafkaConf.ChanSize)
 	// 起一个 gorutine 从msgchan中读取数据
 	go SendToKafka()
 	return
@@ -38,7 +38,7 @@ func SendToKafka() {
 	fmt.Println("-----------SendToKafka---------")
 	for {
 		select {
-		case msg := <-MsgChan:
+		case msg := <-msgChan:
 			pid, offset, err := client.SendMessage(msg)
 			if err != nil {
 				fmt.Println("error msg failed, err:", err)
@@ -48,5 +48,8 @@ func SendToKafka() {
 		}
 
 	}
+}
+func ToMsgChan(msg *sarama.ProducerMessage) {
+	msgChan <- msg
 
 }

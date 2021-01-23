@@ -3,6 +3,7 @@ package main
 import (
 	"code.oldboyedu.com/logagent/conf"
 	"github.com/Shopify/sarama"
+	"strings"
 	"time"
 
 	"code.oldboyedu.com/logagent/kafka"
@@ -27,12 +28,18 @@ func run() (err error) {
 			time.Sleep(time.Second)
 			continue
 		}
-		fmt.Println("line=", line)
+		if len(strings.Trim(line.Text, "\r")) == 0 {
+			fmt.Println("出现换行直接跳过..")
+			continue
+		}
+
+		fmt.Println("line=", line.Text)
 		// 改为异步，利用通道
 		msg := &sarama.ProducerMessage{}
 		msg.Topic = cfg.KafkaConf.Topic
 		msg.Value = sarama.StringEncoder(line.Text)
-		kafka.MsgChan <- msg
+		kafka.ToMsgChan(msg)
+
 	}
 }
 
