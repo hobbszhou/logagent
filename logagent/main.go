@@ -2,12 +2,12 @@ package main
 
 import (
 	"code.oldboyedu.com/logagent/conf"
+	"github.com/Shopify/sarama"
+	"time"
 
 	"code.oldboyedu.com/logagent/kafka"
 	"code.oldboyedu.com/logagent/taillog"
 	"fmt"
-	"gopkg.in/ini.v1"
-	"time"
 )
 
 // logAgent入口程序
@@ -16,29 +16,32 @@ var (
 	cfg = new(conf.AppConf)
 )
 
-func run() {
+func run() (err error) {
 	// 1. 读取日志
+	fmt.Println("------------ run ------------")
+	fmt.Println("filenmae=", cfg.TaillogConf.FileName, cfg.KafkaConf.Topic)
 	for {
-		select {
-		case line := <-taillog.ReadChan():
-			// 2. 发送到kafka
-			kafka.SendToKafka(cfg.KafkaConf.Topic, line.Text)
-		default:
+		line, ok := <-taillog.TailObj.Lines
+		if !ok {
+			fmt.Println("tail file close reopen ,filename is=", taillog.TailObj.Filename)
 			time.Sleep(time.Second)
+			continue
 		}
+		fmt.Println("line=", line)
+		// 改为异步，利用通道
+		msg := &sarama.ProducerMessage{}
+		msg.Topic = cfg.KafkaConf.Topic
+		msg.Value = sarama.StringEncoder(line.Text)
+		kafka.MsgChan <- msg
 	}
 }
 
 func main() {
-	// 0. 加载配置文件
-	err := ini.MapTo(cfg, "./conf/config.ini")
-	if err != nil {
-		fmt.Printf("load ini failed, err:%v\n", err)
-		return
-	}
+
+	cfg = conf.GetConfInstance()
 	fmt.Println(cfg)
 	// 1. 初始化kafka连接
-	err = kafka.Init([]string{cfg.KafkaConf.Address})
+	err := kafka.Init([]string{cfg.KafkaConf.Address})
 	if err != nil {
 		fmt.Printf("init Kafka failed,err:%v\n", err)
 		return

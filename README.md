@@ -4,33 +4,34 @@
 ##### 2. 安装zookeeper
 ##### 3. 安装kafka
 
-## 二、启动环境
+### 二、启动
 
 ##### 1. 启动zookeper
 ``` bash
-   zookeeper-server-start.bat ..\..\config\zookeeper.properties
+zookeeper-server-start.bat ..\..\config\zookeeper.properties
 ```
 ##### 2. 启动kafka
 ``` bash
-   kafka-server-start.bat ..\..\config\server.properties
+kafka-server-start.bat ..\..\config\server.properties
 ```
 
 ##### 3. 创建主题
 ``` bash
-   .\bin\windows\kafka-topics.bat --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic test
+.\bin\windows\kafka-topics.bat --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic test
 ```
 ##### 4. 查看主题输入
 ``` bash
-   .\bin\windows\kafka-topics.bat --list --zookeeper localhost:2181
+.\bin\windows\kafka-topics.bat --list --zookeeper localhost:2181
 ```
 ##### 5. 创建生产者
 ``` bash
-   .\bin\windows\kafka-console-producer.bat --broker-list localhost:9092 --topic test
+.\bin\windows\kafka-console-producer.bat --broker-list localhost:9092 --topic test
 ```
 ##### 6. 创建消费者
 ``` bash
-   .\bin\windows\kafka-console-consumer.bat --bootstrap-server localhost:9092 --topic test --from-beginning
-   ```
+.\bin\windows\kafka-console-consumer.bat --bootstrap-server localhost:9092 --topic test --from-beginning
+```
+   至此上述启动成功，说明我们搭建的环境没有问题
 
 
    
