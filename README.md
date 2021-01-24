@@ -1,6 +1,6 @@
 # logagent 一个日志收集项目
 ### 一、项目架构图
-![](./doc/framework.png)
+![framework.png](./doc/framework.png)
 
 ### 二、项目思路
    1. 通过将topic以及日志文件放到到etcd中,
