@@ -1,69 +1,121 @@
 package etcd
 
 import (
-	"code.oldboyedu.com/logagent/common"
 	"context"
 	"encoding/json"
-	"fmt"
-	"go.etcd.io/etcd/clientv3"
+	"github.com/sirupsen/logrus"
+	"logagent/common"
+	"os"
 	"time"
+
+	"go.etcd.io/etcd/clientv3"
 )
 
 var (
-	cli *clientv3.Client
+	log      *logrus.Logger
+	client   *clientv3.Client
+	confChan chan []*common.CollectEntry
 )
 
-// 初始化ETCD的函数
-func Init(addr string, timeout time.Duration) (err error) {
-	cli, err = clientv3.New(clientv3.Config{
-		Endpoints:   []string{addr},
-		DialTimeout: timeout,
+func init() {
+	log = logrus.New()
+	
+	log.Out = os.Stdout
+	log.Level = logrus.DebugLevel
+	
+	log.Info("etcd:init log success")
+}
+
+func Init(address []string, key string) (err error) {
+	client, err = clientv3.New(clientv3.Config{
+		Endpoints:   address,
+		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
-		// handle error!
-		fmt.Printf("connect to etcd failed, err:%v\n", err)
+		
+		log.Errorf("connect to etcd failed, err:%v\n", err)
 		return
 	}
+	confChan = make(chan []*common.CollectEntry)
 	return
 }
 
-// 从ETCD中根据key获取配置项
-func GetConf(key string) (logEntryConf []common.LogEntry, err error) {
-
-	fmt.Println("key==========", key)
-	// get
-
+func GetConf(key string) (conf []*common.CollectEntry, err error) {
+	
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	resp, err := cli.Get(ctx, key)
-	cancel()
+	resp, err := client.Get(ctx, key)
+	defer cancel()
 	if err != nil {
-		fmt.Printf("get from etcd failed, err:%v\n", err)
+		log.Errorf("get from etcd failed, err:%v\n", err)
 		return
 	}
 	if len(resp.Kvs) == 0 {
-		fmt.Println("failed: get len:0 conf from etcd by key:%s", key)
-	}
-	ret := resp.Kvs[0]
-
-	// ret.Value // json格式化字符串
-	fmt.Println(ret.Value)
-	err = json.Unmarshal(ret.Value, &logEntryConf)
-	fmt.Println("vvvvvvvv=", logEntryConf)
-	if err != nil {
-		fmt.Println("failed, json unmarshal failed, err:%v", err)
+		log.Warnf("can't get any value by key:%s from etcd", key)
 		return
 	}
-
-	for _, ev := range resp.Kvs {
-		//fmt.Printf("%s:%s\n", ev.Key, ev.Value)
-		err = json.Unmarshal(ev.Value, &logEntryConf)
-		if err != nil {
-			fmt.Printf("unmarshal etcd value failed,err:%v\n", err)
-			return
-		}
+	keyValues := resp.Kvs[0]
+	err = json.Unmarshal(keyValues.Value, &conf)
+	if err != nil {
+		log.Errorf("unmarshal value from etcd failed, err:%v", err)
+		return
 	}
+	log.Debugf("load conf from etcd success, conf:%#v", conf)
 	return
 }
 
-// C:/tmp/nginx.log   web_log
-// D:/xxx/redis.log   redis_log
+func GetSysinfoConf(key string) (conf *common.CollectSysInfoConfig, err error) {
+	
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	resp, err := client.Get(ctx, key)
+	defer cancel()
+	if err != nil {
+		log.Errorf("get system info config from etcd failed, err:%v\n", err)
+		return
+	}
+	if len(resp.Kvs) == 0 {
+		log.Warnf("can't get any value by key:%s from etcd", key)
+		return
+	}
+	keyValues := resp.Kvs[0]
+	err = json.Unmarshal(keyValues.Value, &conf)
+	if err != nil {
+		log.Errorf("unmarshal value from etcd failed, err:%v", err)
+		return
+	}
+	log.Debugf("load conf from etcd success, conf:%#v", conf)
+	return
+}
+
+func WatchConf(key string) {
+	for {
+		rch := client.Watch(context.Background(), key) 
+		log.Debugf("watch return, rch:%#v", rch)
+		for wresp := range rch {
+			if err := wresp.Err(); err != nil {
+				log.Warnf("watch key:%s err:%v", key, err)
+				continue
+			}
+			for _, ev := range wresp.Events {
+				log.Debugf("Type: %s Key:%s Value:%s", ev.Type, ev.Kv.Key, ev.Kv.Value)
+				
+				var newConf []*common.CollectEntry
+				
+				if ev.Type == clientv3.EventTypeDelete {
+					confChan <- newConf
+					continue
+				}
+				err := json.Unmarshal(ev.Kv.Value, &newConf)
+				if err != nil {
+					log.Warnf("unmarshal the conf from etcd failed, err:%v", err)
+					continue
+				}
+				confChan <- newConf
+				log.Debug("send newConf to confChan success")
+			}
+		}
+	}
+}
+
+func WatchChan() <-chan []*common.CollectEntry {
+	return confChan
+}

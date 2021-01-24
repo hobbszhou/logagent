@@ -1,68 +1,119 @@
 package main
 
 import (
-	"code.oldboyedu.com/logagent/conf"
-	"code.oldboyedu.com/logagent/etcd"
+	"fmt"
+	"logagent/common"
+	"logagent/etcd"
+	"logagent/kafka"
+	"logagent/sysinfo"
+	"logagent/tailfile"
+	"logagent/utils"
+	"os"
+	"strings"
+	"sync"
 	"time"
 
-	"code.oldboyedu.com/logagent/kafka"
-	"code.oldboyedu.com/logagent/taillog"
-	"fmt"
+	"github.com/go-ini/ini"
+	"github.com/sirupsen/logrus"
 )
-
-// logAgent入口程序
 
 var (
-	cfg = new(conf.AppConf)
+	log *logrus.Logger
+	wg  sync.WaitGroup
 )
 
-func run() (err error) {
-	/// 制造一个死循环
-	select {}
+type config struct {
+	KafkaConfig   `ini:"kafka"`
+	CollectConfig `ini:"collect"`
+	EtcdConfig    `ini:"etcd"`
+}
+
+type KafkaConfig struct {
+	Address  string `ini:"address"`
+	ChanSize int    `ini:"chan_size"`
+}
+
+type CollectConfig struct {
+	Logfile string `ini:"logfile"`
+}
+
+type EtcdConfig struct {
+	Address           string `ini:"address"`
+	CollectLogKey     string `ini:"collect_log_key"`
+	CollectSysInfoKey string `ini:"collect_sysinfo_key"`
+}
+
+func initLogger() {
+	log = logrus.New()
+	
+	log.Out = os.Stdout
+	log.Level = logrus.DebugLevel
+	
+	log.Info("init log success")
+}
+
+func run(logConfKey string, sysinfoConf *common.CollectSysInfoConfig) {
+	
+	wg.Add(2)
+	go etcd.WatchConf(logConfKey)
+	go sysinfo.Run(time.Duration(sysinfoConf.Interval)*time.Second, sysinfoConf.Topic)
+	wg.Wait()
 }
 
 func main() {
-
-	cfg = conf.GetConfInstance()
-	fmt.Println(cfg)
-	// 1. 初始化kafka连接
-	err := kafka.Init([]string{cfg.KafkaConf.Address})
+	initLogger()
+	var cfg config 
+	
+	err := ini.MapTo(&cfg, "./conf/config.ini")
 	if err != nil {
-		fmt.Printf("init Kafka failed,err:%v\n", err)
-		return
+		panic(fmt.Sprintf("init config failed, err:%v", err))
 	}
-	fmt.Println("init kafka success.")
-
-	// 初始化 etcd 连接
-	// 5 * time.Second
-	err = etcd.Init(cfg.EtcdConf.Address, time.Duration(cfg.EtcdConf.Timeout)*time.Second)
+	
+	err = kafka.Init(strings.Split(cfg.KafkaConfig.Address, ","), cfg.KafkaConfig.ChanSize)
 	if err != nil {
-		fmt.Printf("init etcd failed,err:%v\n", err)
-		return
+		panic(fmt.Sprintf("init kafka failed, err:%v", err))
 	}
-	fmt.Println("init etcd success.")
-	// 2.1 从etcd中获取日志收集项的配置信息
-	logEntryConf, err := etcd.GetConf(cfg.EtcdConf.CollectKey)
-	// 2.2 拍一个哨兵去监视日志收集项的变化（有变化及时通知我的logAgent实现热加载配置）
+
+	ip, err := utils.GetOutboundIP()
 	if err != nil {
-		fmt.Printf("etcd.GetConf failed,err:%v\n", err)
-		return
+		panic(fmt.Sprintf("get local ip failed, err:%v", err))
 	}
-	fmt.Printf("get conf from etcd success, %v\n", logEntryConf)
-	// 2. 根据etcd获取的配置进行初始化
-	err = taillog.Init(logEntryConf)
-
-	for index, value := range logEntryConf {
-		fmt.Printf("index:%v value:%v\n", index, value)
+	
+	collectLogKey := fmt.Sprintf(cfg.EtcdConfig.CollectLogKey, ip)
+	err = etcd.Init(strings.Split(cfg.EtcdConfig.Address, ","), collectLogKey)
+	if err != nil {
+		panic(fmt.Sprintf("init etcd failed, err:%v", err))
 	}
-	////2. 打开日志文件准备收集日志
-	//err = taillog.Init(cfg.TaillogConf.FileName)
-	//if err != nil {
-	//	fmt.Printf("Init taillog failed,err:%v\n", err)
-	//	return
-	//}
-	//fmt.Println("init taillog success.")
-	////3. 具体的业务
-	run()
+	log.Debug("init etcd success!")
 
+	collectLogConf, err := etcd.GetConf(collectLogKey)
+	if err != nil {
+		panic(fmt.Sprintf("get collect conf from etcd failed, err:%v", err))
+	}
+	log.Debugf("111111111111----%s", collectLogConf)
+
+	collectSysinfoKey := fmt.Sprintf(cfg.EtcdConfig.CollectSysInfoKey, ip)
+	collectSysinfoConf, err := etcd.GetSysinfoConf(collectSysinfoKey)
+	fmt.Printf("collectSysinfoConf====%s\n", collectSysinfoConf)
+	if err != nil {
+		panic(fmt.Sprintf("get collect sys info conf from etcd failed, err:%v", err))
+	}
+	if collectSysinfoConf == nil {
+		collectSysinfoConf = &common.CollectSysInfoConfig{
+			Interval: 5,
+			Topic:    "collect_system_info",
+		}
+	}
+	log.Debugf("%#v", collectSysinfoConf)
+
+	newConfChan := etcd.WatchChan()
+	
+	err = tailfile.Init(collectLogConf, newConfChan) 
+	if err != nil {
+		panic(fmt.Sprintf("init tail failed, err:%v", err))
+	}
+	log.Debug("init tail success!")
+
+	run(collectLogKey, collectSysinfoConf)
+	log.Debug("logagent exit")
 }
