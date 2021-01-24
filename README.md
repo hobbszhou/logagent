@@ -1,17 +1,20 @@
 # logagent 一个日志收集项目
-### 一、项目思路
-   1. 通过 put 操作 将topic以及日志文件put到etcd中,
-   2. 另一个进程从 etcd 中 get到topic和日志文件
-   3. 利用taillog 库，从日志文件中取出日志，然后通过kafka生产者将日志文件放到 kafka中
-   4. 然后另一个进程从kafka消费出放到kafka里的消息，并将消息写道 elasticsearch 中
-   5. 浏览器使用kibana就可以查看到放到elasticsearch的数据
-### 二、环境搭建
+### 一、项目架构图
+![](./doc/framework.png)
+
+### 二、项目思路
+   1. 通过将topic以及日志文件放到到etcd中,
+   2. logagent从etcd 中获取到topic和日志文件
+   3. 利用taillog模块，从日志文件中取出日志，放到kafka中
+   4. 通过logtransfers，并将消息写道elasticsearch中
+   5. 前端使用kibana就可以查看到放到elasticsearch的数据
+### 三、环境搭建
    1. 配置jdk
    2. 安装zookeeper
    3. 安装kafka
    4. 安装etcd
 
-### 三、启动
+### 四、启动
 
 ##### 1. 启动zookeper
 ``` bash
@@ -43,8 +46,8 @@
 ##### 7. 启动etcd
 ```
    执行etcd.exe即可
-   etcdctl.exe --endpoints=http://127.0.0.1:2379 put aaa "bbb"
-   etcdctl.exe --endpoints=http://127.0.0.1:2379 get aaa
+   etcdctl.exe --endpoints=http://127.0.0.1:2379 put xxxx "xxxx"
+   etcdctl.exe --endpoints=http://127.0.0.1:2379 get xxxx
 
 ```
    
